@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Financeiro Avançado</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: Arial; margin:20px; background:#f4f6f8;}
+.card { background:white; padding:15px; margin:10px 0; border-radius:10px;}
+button { padding:10px; margin:5px; cursor:pointer;}
+textarea { width:100%; height:80px;}
+</style>
+</head>
+
+<body>
+
+<h1>📊 Dashboard Financeiro Inteligente</h1>
+
+<div class="card">
+<h3>📥 Upload CSV</h3>
+<input type="file" id="csvFile">
+<button onclick="uploadCSV()">Importar CSV</button>
+</div>
+
+<div class="card">
+<h3>📋 Colar dados (Google Sheets)</h3>
+<textarea id="pasteData" placeholder="Cole aqui..."></textarea>
+<button onclick="importPaste()">Importar</button>
+</div>
+
+<div class="card">
+<h3>✍️ Inserção Manual</h3>
+<input id="inst" placeholder="Instituição">
+<input id="valor" type="number" placeholder="Valor Parcela">
+<input id="qtd" type="number" placeholder="Qtd Parcelas">
+<input id="atual" type="number" placeholder="Parcela Atual">
+<button onclick="addManual()">Adicionar</button>
+</div>
+
+<div class="card">
+<button onclick="analisar()">🔍 Fazer Análise</button>
+<h3>Insights</h3>
+<div id="insights"></div>
+</div>
+
+<div class="card">
+<h3>Gráfico</h3>
+<canvas id="grafico"></canvas>
+</div>
+
+<script>
+
+let dados = JSON.parse(localStorage.getItem("dados")) || [];
+
+function salvar(){
+  localStorage.setItem("dados", JSON.stringify(dados));
+}
+
+function processarLinha(inst, valor, qtd, atual){
+  let total = valor*qtd;
+  let aberto = (qtd-atual)*valor;
+
+  dados.push({inst, valor, qtd, atual, total, aberto});
+}
+
+function uploadCSV(){
+  let file = document.getElementById("csvFile").files[0];
+  let reader = new FileReader();
+
+  reader.onload = function(e){
+    let linhas = e.target.result.split("\n");
+
+    linhas.slice(1).forEach(l=>{
+      let c = l.split(",");
+      if(c.length>=4){
+        processarLinha(c[0], parseFloat(c[1]), parseInt(c[2]), parseInt(c[3]));
+      }
+    });
+
+    salvar();
+    alert("CSV importado!");
+  };
+
+  reader.readAsText(file);
+}
+
+function importPaste(){
+  let texto = document.getElementById("pasteData").value;
+  let linhas = texto.split("\n");
+
+  linhas.forEach(l=>{
+    let c = l.split("\t");
+    if(c.length>=4){
+      processarLinha(c[0], parseFloat(c[1]), parseInt(c[2]), parseInt(c[3]));
+    }
+  });
+
+  salvar();
+  alert("Dados importados!");
+}
+
+function addManual(){
+  processarLinha(
+    document.getElementById("inst").value,
+    parseFloat(document.getElementById("valor").value),
+    parseInt(document.getElementById("qtd").value),
+    parseInt(document.getElementById("atual").value)
+  );
+
+  salvar();
+}
+
+function analisar(){
+
+  let totalAberto = 0;
+  let ranking = [...dados].sort((a,b)=>b.aberto-a.aberto);
+
+  dados.forEach(d=> totalAberto += d.aberto);
+
+  let html = `<b>Total em aberto:</b> R$ ${totalAberto.toFixed(2)}<br><br>`;
+
+  html += "<b>Prioridades:</b><br>";
+
+  ranking.slice(0,5).forEach(r=>{
+    html += `🔴 ${r.inst} → R$ ${r.aberto.toFixed(2)}<br>`;
+  });
+
+  if(totalAberto > 5000){
+    html += "<br>⚠️ Alto nível de endividamento!";
+  }
+
+  document.getElementById("insights").innerHTML = html;
+
+  gerarGrafico();
+}
+
+let chart;
+
+function gerarGrafico(){
+  let porInst = {};
+
+  dados.forEach(d=>{
+    if(!porInst[d.inst]) porInst[d.inst]=0;
+    porInst[d.inst]+=d.aberto;
+  });
+
+  let labels = Object.keys(porInst);
+  let valores = Object.values(porInst);
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("grafico"),{
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[{
+        label:"Dívida em aberto",
+        data:valores
+      }]
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
